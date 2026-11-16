@@ -38,6 +38,14 @@ def main():
     p_version = subparsers.add_parser("version", help="Show OsdagBridge version information")
     p_version.set_defaults(func=cmd_version)
 
+    # gui
+    def _cmd_gui(args):
+        from osdagbridge.desktop.__main__ import main as desktop_main
+        return desktop_main()
+
+    p_gui = subparsers.add_parser("gui", help="Launch the OsdagBridge desktop graphical user interface")
+    p_gui.set_defaults(func=_cmd_gui)
+
     args = parser.parse_args()
     if not args.subcommand:
         parser.print_help()

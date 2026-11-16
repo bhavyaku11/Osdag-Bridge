@@ -49,13 +49,16 @@ pip install -e ".[dev]"
 
 ---
 
-## Command-Line Interface (CLI)
+## Command-Line & Graphical Interface Entry Points
 
-OsdagBridge includes an integrated CLI:
+OsdagBridge provides unified entry points configured in `pyproject.toml`:
+- `osdagbridge` / `osdagbridge-cli`: Command-line interface for headless validation, BOQ estimation, and LaTeX report generation.
+- `osdagbridge-gui` (or `osdagbridge gui`): Launches the desktop graphical user interface.
 
 ```bash
-# Display version and build information
+# Display version and build information (accessible via either command)
 osdagbridge version
+osdagbridge-cli version
 
 # Validate bridge model input geometry
 osdagbridge analyze resources/sample_bridge_model.json
@@ -65,6 +68,9 @@ osdagbridge boq resources/sample_bridge_model.json
 
 # Generate publication-quality 7-chapter LaTeX report and charts
 osdagbridge report resources/sample_bridge_model.json --output-dir ./report_out
+
+# Launch the desktop graphical interface
+osdagbridge-gui
 ```
 
 ---

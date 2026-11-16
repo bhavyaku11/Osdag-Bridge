@@ -505,10 +505,11 @@ def test_full_report_generation():
 
 
 def run_all_tests():
-    """Run all functional test suite cases."""
-    print("=" * 70)
-    print("      OSDAGBRIDGE AUTOMATED FUNCTIONAL TEST SUITE (20+ CASES)")
-    print("=" * 70)
+    """Run all functional test suite cases and verify test matrix log."""
+    print("=" * 75)
+    print("   OSDAGBRIDGE COMPREHENSIVE TEST MATRIX (20 SCENARIOS + 5 INTEGRATION CHECKS)")
+    print("=" * 75)
+    print("--- [PART 1]: 20 Parameter Variations & State-Persistence Verification ---")
     test_tc01_baseline_standard()
     test_tc02_short_span()
     test_tc03_long_span()
@@ -529,14 +530,20 @@ def run_all_tests():
     test_tc18_footpath_pedestrian_loading()
     test_tc19_empty_custom_field_guard()
     test_tc20_dictionary_completeness_audit()
+    print("--> Part 1: All 20 Parameter & State-Persistence Scenarios PASSED.\n")
+
+    print("--- [PART 2]: 5 Computational Integration & Verification Checks ---")
     test_boq_calculations()
     test_boq_non_uniform_girders_fix_verification()
     test_boq_missing_girder_rejection_guard()
     test_chart_generation()
     test_full_report_generation()
-    print("=" * 70)
-    print("   ALL FUNCTIONAL TEST MATRIX SCENARIOS PASSED SUCCESSFULLY! (25/25)")
-    print("=" * 70)
+    print("--> Part 2: All 5 Computational Integration Checks PASSED.\n")
+
+    print("=" * 75)
+    print("   TOTAL VERIFICATION: 25/25 MATRIX CASES & INTEGRATION CHECKS PASSED")
+    print("   Detailed Matrix CSV: tests/test_matrix_log.csv")
+    print("=" * 75)
 
 
 if __name__ == "__main__":

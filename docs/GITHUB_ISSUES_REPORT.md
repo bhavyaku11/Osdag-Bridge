@@ -51,37 +51,56 @@ Reported volume is:
 $$\text{Reported Volume} = 4 \times (0.040\text{ m}^2 \times 20.0\text{ m}) = 3.20\text{ m}^3$$
 **Discrepancy:** $0.80\text{ m}^3$ under-reporting (equivalent to $6.28\text{ MT}$ of structural steel missing from the Bill of Materials!).
 
-#### Root Cause Analysis
-In `osdagbridge/core/boq/boq_generator.py:142`:
+#### Root Cause Analysis (Historical Bug in Upstream)
+In upstream `osdagbridge/core/boq/boq_generator.py:142`:
 ```python
-# Lines 142-187
+# Upstream lines 142-187
 girder_area = float(resolve_girder_value(inputs, "member_properties.girder_details.section_properties.area", 0))
 ...
 girder_total_vol = n_girders * girder_vol  # girder_vol is strictly G1 area * span!
 ```
-While line 180 iterates over `gi in range(n_girders)` to compute `total_girder_mass`, the volume calculation outside the loop remains pegged strictly to index 0.
+While line 180 iterated over `gi in range(n_girders)` to compute `total_girder_mass`, the volume calculation outside the loop remained pegged strictly to index 0.
 
-#### Proposed Code Fix
+#### Historical Flawed Patch (Why Silent Fallbacks Must Be Rejected)
+An early naive fix attempted:
 ```python
-# In osdagbridge/core/boq/boq_generator.py
-total_girder_vol = 0.0
-total_girder_mass = 0.0
-
+# Naive approach (REJECTED): Silently falling back to G1 area masks corrupted input datasets!
 for gi in range(n_girders):
     try:
-        g_area = float(resolve_girder_value(inputs, "member_properties.girder_details.section_properties.area", gi))
+        g_area = float(resolve_girder_value(inputs, area_key, gi))
     except Exception:
-        g_area = girder_area  # Fallback to representative area
-    total_girder_vol += g_area * span
-
-    try:
-        mass_per_m = float(resolve_girder_value(inputs, "member_properties.girder_details.section_properties.mass", gi))
-        total_girder_mass += mass_per_m * span
-    except Exception:
-        total_girder_mass += g_area * span * 7850.0
-
-quantities["steel_girders_vol_total"] = f"{total_girder_vol:.2f}"
+        g_area = girder_area  # DANGEROUS: Silent fallback masks missing data!
 ```
+This naive fix was rejected because silently falling back to Girder 1 when an interior girder's data is missing or corrupted violates civil engineering data integrity principles.
+
+#### Final Verified Implementation & Solution
+The complete and robust fix implemented in `osdagbridge/core/boq/boq_generator.py`:
+1. **Per-Girder Area & Volume Resolution**: Resolves each girder's true area and length individually.
+2. **Explicit Per-Girder Scheme Validation**: If a per-girder scheme (`.G1`, `.G2`) is present, every single girder must have complete sectional properties.
+3. **No Silent Fallback**: If a girder (e.g. G3) is missing, the engine raises an explicit `KeyError` detailing the missing property, preventing silent data corruption.
+4. **Mass-Density Consistency**: Cross-checks provided member mass against $A \times \rho_{\text{steel}}$ and flags discrepancies $>15\%$.
+
+```python
+# Production implementation in src/osdagbridge/core/boq/boq_generator.py:
+for gi in range(n_girders):
+    # If per-girder area exists, strictly validate every girder
+    if has_per_girder_area:
+        a_val = resolve_girder_value(inputs, area_key, gi)
+        if a_val is None:
+            raise KeyError(
+                f"Incomplete per-girder dataset: property '{area_key}' missing for girder G{gi + 1}. "
+                "Silent fallback to G1 is strictly rejected."
+            )
+        g_area = _parse_strict_positive_float(a_val)
+    ...
+    total_girder_vol += g_area * span
+```
+
+#### Automated Regression Verification
+Verified via automated unit and functional tests:
+- `tests/unit/test_reports.py::test_boq_non_uniform_girder_volume` (PASSED)
+- `tests/unit/test_reports.py::test_boq_missing_girder_rejection_issue_103` (PASSED)
+- `tests/run_functional_tests.py` BOQ Verification & Regression Guard (PASSED)
 
 ---
 

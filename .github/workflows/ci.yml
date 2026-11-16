@@ -38,6 +38,13 @@ jobs:
         run: |
           pytest -v
 
+      - name: Verify CLI Console Scripts
+        run: |
+          osdagbridge version
+          osdagbridge-cli version
+          osdagbridge analyze resources/sample_bridge_model.json
+          osdagbridge-cli boq resources/sample_bridge_model.json
+
       - name: Run 25-Scenario Functional Test Matrix
         run: |
           python3 tests/run_functional_tests.py

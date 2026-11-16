@@ -142,32 +142,38 @@ tests/unit/test_reports.py::test_pdf_compilation_when_toolchain_present SKIPPED 
 ======================== 29 passed, 1 skipped (30 total) =========================
 ```
 
-### 3.3 Logged GitHub Issues Summary (`GITHUB_ISSUES_REPORT.md`)
-1. **[BUG-01] BOM Volume Uses Girder 1 for All Girders (Issue #103 Confirmed & Fixed)**:
-   - Evaluated section area strictly for G1; caused $20\%$ steel tonnage error on non-uniform bridges. Fixed by summing individual girder areas and rejecting incomplete per-girder schemes.
-2. **[BUG-02] Unclosed `\begingroup` in Chapter 7**:
-   - Leaked narrow column spacing into Chapter 8 and 9. Fixed with matching `\endgroup`.
-3. **[BUG-03] Report Geometry Margin Causes Footer Overlap**:
-   - Fixed with $2.8\text{ cm}$ bottom margin and $38\text{ pt}$ footskip in `styles.py`.
-4. **[BUG-04] Unhandled `openseespy` Import in Results Extraction**:
-   - Fixed with safe import fallback.
-5. **[BUG-05] Missing `\endhead` on Multi-Page Tables**:
-   - Fixed via `ReportStyle.build_longtable_header()`.
-6. **[BUG-06] Ambiguous Merged Live Load Tables**:
-   - Fixed by separating vehicle and pedestrian load tables.
-7. **[BUG-07] Support Reaction Extraction Omission on Skew Bridges**:
-   - Node tag resolution enhancement documented.
+### 3.3 Logged GitHub Issues on Upstream Repository (`Nidhikhare12/OsdagBridge`)
+
+Live issues reported on the official target repository:
+
+1. **[Issue #103](https://github.com/Nidhikhare12/OsdagBridge/issues/103) — BOM Structural Steel Girder Volume Uses G1 Area for All Girders (Confirmed & Fixed)**:
+   - Root Cause: Evaluated section area strictly for G1; caused $20\%$ steel tonnage error on bridges with unequal interior/exterior girders.
+   - Solution: Refactored to sum individual girder areas, added strict numerical validation rejecting non-finite/fractional inputs, enforced physical mass-density cross-validation, and implemented regression guards rejecting silent fallback to G1.
+2. **[Issue #119](https://github.com/Nidhikhare12/OsdagBridge/issues/119) — Unclosed `\begingroup` in Chapter 7 Leaking Column Width Scope**:
+   - Root Cause: Missing matching `\endgroup` leaked narrow $3.5\text{ pt}$ column separation into subsequent chapters (Ch. 8 Design Log & Ch. 9 References).
+3. **[Issue #120](https://github.com/Nidhikhare12/OsdagBridge/issues/120) — Default 1-Inch Bottom Margin Causes Footer Collision**:
+   - Root Cause: Default 1-inch bottom margin and 30 pt footskip caused multi-page check tables (such as Page 30 / Girder G4) to collide with the green footer rule when software default footnotes were rendered.
+   - Solution: Centralized in `styles.py` with $2.8\text{ cm}$ bottom margin and $38\text{ pt}$ footskip.
+4. **[Issue #121](https://github.com/Nidhikhare12/OsdagBridge/issues/121) — Multi-Page Tables Omit `\endhead` Continuation Headers**:
+   - Root Cause: Multi-page tables defined headers once without `\endhead`, truncating column designations on subsequent continuation pages.
+   - Solution: Standardized via `ReportStyle.build_longtable_header()`.
+5. **[Issue #122](https://github.com/Nidhikhare12/OsdagBridge/issues/122) — Chapter 3 Conflates Vehicle Axle Loads and Pedestrian Footway Loadings**:
+   - Root Cause: Merged vehicle axle forces with pedestrian area intensity ($4.0-5.0\text{ kN/m}^2$) without distinct unit or clause distinctions per IRC 6:2017 Cl. 206.
+   - Solution: Split into dedicated Table 3.3 (Vehicle Live Loads) and Table 3.4 (Footpath and Pedestrian Live Loads).
 
 ---
 
 ## 4. Submission Checklist & Repository Layout
 
-- [x] OsdagBridge repository cloned and branched: `feature/latex-reports-and-software-testing`.
-- [x] Task 3 complete: `styles.py`, `plot_utils.py`, `chap3.py`, `chap5.py`, `chap7.py`, `report_generator.py`.
-- [x] Task 6 complete: `TEST_MATRIX.md`, `GITHUB_ISSUES_REPORT.md`, `run_functional_tests.py`, 6 unit/integration test suites (30 tests).
-- [x] Bug #103 verified and resolved in `boq_generator.py` with regression testing.
-- [x] Working CLI implemented in `osdagbridge.cli` (`analyze`, `boq`, `report`, `version`).
-- [x] Documentation complete: `docs/architecture.md`, `docs/developer_guide.md`, `docs/user_guide.md`, `docs/PRD_TASKS_3_AND_6.md`.
+- [x] OsdagBridge repository branched across `dev`, `feature/latex-reports-and-software-testing`, and `main` pointing to verified commit.
+- [x] Task 3 complete: `styles.py`, `plot_utils.py`, `chap1.py` - `chap9.py`, `report_generator.py`.
+- [x] Task 6 complete: `TEST_MATRIX.md`, `tests/test_matrix_log.csv`, `docs/INPUT_OUTPUT_DICTIONARY_AUDIT.md`, `docs/GITHUB_ISSUES_REPORT.md`, `run_functional_tests.py`, 6 unit/integration test suites (30 tests).
+- [x] Upstream Issue #103 verified and resolved in `boq_generator.py` with passing regression tests.
+- [x] Live GitHub issues reported on upstream repository (`Nidhikhare12/OsdagBridge`: #103, #119, #120, #121, #122).
+- [x] Working CLI console scripts configured in `pyproject.toml` (`osdagbridge`, `osdagbridge-cli`, `osdagbridge-gui`).
+- [x] Comprehensive documentation: `docs/architecture.md`, `docs/developer_guide.md`, `docs/user_guide.md`, `docs/PRD_TASKS_3_AND_6.md`, `docs/INPUT_OUTPUT_DICTIONARY_AUDIT.md`.
+- [x] CI pipeline configured with automated test matrix and LaTeX compiler installation: `.github/workflows/ci.yml`.
+- [x] Demonstration screencast video script prepared (`DEMO_VIDEO_SCRIPT_OSDAG.md`).
 - [x] CI pipeline configured: `.github/workflows/ci.yml`.
 - [x] Unit test suite created in `OsdagBridge/tests/unit/test_reports.py` (5/5 pytest pass).
 - [x] Demonstration video script prepared (`DEMO_VIDEO_SCRIPT_OSDAG.md`).

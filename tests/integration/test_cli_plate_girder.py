@@ -100,3 +100,14 @@ def test_cli_subprocess_invocation():
     )
     assert res.returncode == 0
     assert "OsdagBridge Core Version" in res.stdout
+
+
+def test_cli_main_entrypoint(sample_model_path, monkeypatch, capsys):
+    """Verify that calling cli.__main__.main() directly (as installed console scripts do) works cleanly."""
+    from osdagbridge.cli.__main__ import main
+    monkeypatch.setattr(sys, "argv", ["osdagbridge", "version"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert "OsdagBridge Core Version" in captured.out

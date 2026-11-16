@@ -263,6 +263,7 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
         girder_errors: List[str] = []
         girder_areas: List[float] = []
         girder_masses: List[float] = []
+        girder_mass_provenances: List[str] = []
 
         for gi in range(n_girders):
             g_area = None
@@ -305,8 +306,9 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
 
             girder_areas.append(g_area)
 
-            # Resolve girder mass per meter and cross-check mass/volume consistency
+            # Resolve girder mass per meter, track provenance, and cross-check mass/volume consistency
             g_mass = None
+            provenance = "provided"
             try:
                 m_val = resolve_girder_value(inputs, "member_properties.girder_details.section_properties.mass", gi)
                 parsed_m = _parse_strict_positive_float(m_val)
@@ -320,14 +322,18 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
                             f"from theoretical mass ({expected_m:.2f} kg/m = area {g_area:.4f} m² × density {steel_density_kg_m3:.1f} kg/m³)."
                         )
                     g_mass = parsed_m
+                else:
+                    provenance = "computed_from_density"
             except Exception:
-                pass
+                provenance = "computed_from_density"
 
             if g_mass is None:
                 # Density calculation: Area (m²) * steel density (kg/m³)
                 g_mass = g_area * steel_density_kg_m3
+                provenance = "computed_from_density"
 
             girder_masses.append(g_mass)
+            girder_mass_provenances.append(provenance)
 
         if girder_errors:
             # An incomplete or missing girder must NEVER be silently filled with G1 dimensions!
@@ -360,6 +366,7 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
             quantities["steel_girders_vol_total"] = f"{total_g_vol:.2f}"
             quantities["steel_girders_wt_single"] = f"{avg_wt_mt:.2f}"
             quantities["steel_girders_wt_total"] = f"{total_g_wt_mt:.2f}"
+            quantities["_girder_mass_provenance"] = girder_mass_provenances
 
         # ─────────────────────────────────────────────────────────────────────
         # 4. Shear Stud Connectors (Cu.m) and Weight (MT)

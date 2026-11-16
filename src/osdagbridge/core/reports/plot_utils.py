@@ -393,6 +393,29 @@ def generate_material_quantity_chart(
         has_rebar = rebar_wt is not None and rebar_wt > 0
 
         if has_conc or has_rebar:
+            # Resolve concrete grade label dynamically from input_dict (no invented defaults)
+            inp_data = input_dict or {}
+            concrete_grade = None
+            for k in ["material.concrete.grade", "material.deck", "Deck Concrete Grade", "concrete_grade", "deck_concrete_grade"]:
+                if inp_data.get(k):
+                    val = str(inp_data[k]).strip()
+                    if val.lower() == "custom" and inp_data.get("material.concrete.fck"):
+                        concrete_grade = f"M{inp_data['material.concrete.fck']}"
+                    elif val and val.lower() != "custom":
+                        concrete_grade = val
+                    break
+            conc_title = f"Concrete Volume ({concrete_grade})" if concrete_grade else "Concrete Volume"
+
+            # Resolve rebar grade label dynamically from input_dict (no invented defaults)
+            rebar_grade = None
+            for k in ["material.rebar.grade", "material.rebar", "Rebar Grade", "rebar_grade"]:
+                if inp_data.get(k):
+                    val = str(inp_data[k]).strip()
+                    if val:
+                        rebar_grade = val
+                        break
+            rebar_title = f"Reinforcement Steel ({rebar_grade})" if rebar_grade else "Reinforcement Steel"
+
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.8, 4.0), dpi=300)
             fig.patch.set_facecolor('#FFFFFF')
 
@@ -402,12 +425,12 @@ def generate_material_quantity_chart(
             if has_conc:
                 ax1.bar(["Deck Slab\nConcrete"], [val1], width=0.45, color='#475569', edgecolor='#1E293B', linewidth=1.0, zorder=3)
                 ax1.set_ylabel(r"Total Volume ($\mathrm{m}^3$)", fontsize=10.5, fontweight='bold', color='#0F172A')
-                ax1.set_title("Concrete Volume (M40)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax1.set_title(conc_title, fontsize=11, fontweight='bold', color='#0F172A', pad=8)
                 ax1.set_ylim(0, max(val1 * 1.3, 1.0))
                 ax1.text(0, val1 + (val1 * 0.04), f"{val1:.2f} m³", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#0F172A')
             else:
                 ax1.text(0.5, 0.5, "Concrete Volume\nData Unavailable", ha='center', va='center', fontsize=10, color='#94A3B8', style='italic')
-                ax1.set_title("Concrete Volume (M40)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax1.set_title(conc_title, fontsize=11, fontweight='bold', color='#0F172A', pad=8)
                 ax1.set_xticks([])
                 ax1.set_yticks([])
             ax1.grid(True, axis='y', linestyle='-', color='#E2E8F0', zorder=1)
@@ -419,12 +442,12 @@ def generate_material_quantity_chart(
             if has_rebar:
                 ax2.bar(["Deck Slab\nReinforcement"], [val2], width=0.45, color='#91B014', edgecolor='#1E293B', linewidth=1.0, zorder=3)
                 ax2.set_ylabel("Total Weight (MT)", fontsize=10.5, fontweight='bold', color='#0F172A')
-                ax2.set_title("Reinforcement Steel (Fe 500)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax2.set_title(rebar_title, fontsize=11, fontweight='bold', color='#0F172A', pad=8)
                 ax2.set_ylim(0, max(val2 * 1.3, 1.0))
                 ax2.text(0, val2 + (val2 * 0.04), f"{val2:.2f} MT", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#0F172A')
             else:
                 ax2.text(0.5, 0.5, "Reinforcement\nData Unavailable", ha='center', va='center', fontsize=10, color='#94A3B8', style='italic')
-                ax2.set_title("Reinforcement Steel (Fe 500)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax2.set_title(rebar_title, fontsize=11, fontweight='bold', color='#0F172A', pad=8)
                 ax2.set_xticks([])
                 ax2.set_yticks([])
             ax2.grid(True, axis='y', linestyle='-', color='#E2E8F0', zorder=1)

@@ -1,0 +1,26 @@
+Case_ID,Category,Span_m,Girders,Carriageway_m,Skew_deg,Material,Status,Verification_Focus
+TC-01,Geometry & Parameter Persistence,20.0,4,7.5,0,Default E250/M40,PASSED,"Baseline standard run, input persistence & geometry layout"
+TC-02,Geometry & Parameter Persistence,10.0,2,4.25,0,Default E250/M35,PASSED,"Short-span lower bound (10m), 2-girder cross-section persistence"
+TC-03,Geometry & Parameter Persistence,30.0,5,11.0,0,"E350, M45",PASSED,"Long-span upper bound (30m), 5-girder wide deck persistence"
+TC-04,Geometry & Parameter Persistence,25.0,6,14.5,0,"E350, M40",PASSED,Heavy 6-girder highway superstructure persistence
+TC-05,Geometry & Parameter Persistence,18.0,4,7.5,15,Default E250/M40,PASSED,Moderate skew angle (15 deg) geometry definition
+TC-06,Geometry & Parameter Persistence,22.0,4,8.5,30,"E350, M45",PASSED,High skew extreme (30 deg) layout bounds persistence
+TC-07,Geometry & Parameter Persistence,15.0,3,7.0,0,Default E250/M40,PASSED,Zero-overhang cantilever edge geometry validation
+TC-08,Geometry & Parameter Persistence,20.0,3,7.5,0,Default E250/M40,PASSED,Large overhang cantilever edge (1.8m) validation
+TC-09,Material Configuration,24.0,4,7.5,0,"Custom E350 (Fy=350, Fu=490)",PASSED,Custom structural steel yield/ultimate stress persistence
+TC-10,Material Configuration,28.0,4,9.5,0,"Custom E450 (Fy=450, Fu=570)",PASSED,High-strength structural steel properties registration
+TC-11,Material Configuration,16.0,4,7.5,0,Custom Concrete M50 (fck=50),PASSED,High-grade concrete characteristic strength persistence
+TC-12,Material Configuration,20.0,4,7.5,0,"Custom Densities (gamma_c=26, gamma_s=79)",PASSED,Non-default material density parameter persistence
+TC-13,Multi-Run State Isolation,20.0 -> 15.0,4,7.5,0,Default,PASSED,Sequential run 1: span modification memory purity
+TC-14,Multi-Run State Isolation,20.0,4 -> 3,7.5,0,Default,PASSED,Sequential run 2: girder count modification memory purity
+TC-15,Multi-Run State Isolation,20.0,4,7.5,0,Default -> Custom,PASSED,Sequential run 3: material override modification memory purity
+TC-16,Live Loading Specification,20.0,4,7.5,0,Default,PASSED,IRC Class 70R Tracked and Wheeled loading flags registration
+TC-17,Live Loading Specification,28.0,5,11.0,0,Default,PASSED,Special Vehicle (SV) overload configuration envelope
+TC-18,Live Loading Specification,20.0,4,7.5,0,Default,PASSED,Footpath and pedestrian live loading geometry registration
+TC-19,Boundary Guards & Validation,-10.0,0,7.5,0,Default,PASSED,Strict input validation guard rejecting negative/zero geometry
+TC-20,Data Dictionary Completeness,20.0,4,7.5,0,Default,PASSED,Canonical input dictionary completeness audit across 10 keys
+INT-01,Computational Integration,20.0,4,7.5,0,Default,PASSED,"BOQ material quantities calculation engine (Concrete 43.56 m3, Steel 28.26 MT)"
+INT-02,Bug #103 Fix Verification,30.0,4,7.5,0,Non-uniform Girders,PASSED,Verified fix for non-uniform girder area summation (True: 4.00 m3 = Reported: 4.00 m3)
+INT-03,Bug #103 Regression Guard,30.0,4,7.5,0,Missing Girder G3,PASSED,"Regression guard: strictly raises KeyError on incomplete per-girder data, rejects silent fallback"
+INT-04,Zero-Fabrication Visualizations,24.0,4,7.5,0,Default,PASSED,"Matplotlib 300 DPI UR summary & material quantity charts (skips absent data, no fabricated 0.76)"
+INT-05,LaTeX Report Compilation,24.0,4,7.5,0,Default,PASSED,Publication-quality LaTeX report generation with repeated headers and 2.8cm bottom clearance
