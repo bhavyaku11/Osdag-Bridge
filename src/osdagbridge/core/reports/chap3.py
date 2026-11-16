@@ -278,14 +278,15 @@ def ch3_loads(input_dict):
         )
 
     # 1. Dead Load - Self Weight
+    density_unit = r" kN/m\textsuperscript{3}"
     t31 = build_table_with_headers(
         col_spec=r"|L{5.5cm}|p{10.0cm}|",
         header_row=r"\textbf{Parameter} & \textbf{Design Value}",
         caption="Dead Load --- Self Weight",
         label="tab:dead-load-sw",
         body_rows=[
-            f"\\textnormal{{Steel Self-Weight Applied}} & {_render_value(input_dict, KEY_MATERIAL_GIRDER_DENSITY, ' kN/m\\textsuperscript{3}')} \\\\[5pt]\n\\hline",
-            f"\\textnormal{{Concrete Deck Weight}} & {_render_value(input_dict, KEY_MATERIAL_DECK_DENSITY, ' kN/m\\textsuperscript{3}')} \\\\[5pt]\n\\hline",
+            f"\\textnormal{{Steel Self-Weight Applied}} & {_render_value(input_dict, KEY_MATERIAL_GIRDER_DENSITY, density_unit)} \\\\[5pt]\n\\hline",
+            f"\\textnormal{{Concrete Deck Weight}} & {_render_value(input_dict, KEY_MATERIAL_DECK_DENSITY, density_unit)} \\\\[5pt]\n\\hline",
             f"\\textnormal{{Self-Weight Factor}} & {_render_value(input_dict, KEY_PL_SELF_WEIGHT_FACTOR)} \\\\[5pt]\n\\hline"
         ]
     )

@@ -24,15 +24,15 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
 
-      - name: Install Dependencies
+      - name: Install System Dependencies (BLAS, LAPACK for OpenSeesPy, and LaTeX)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libblas3 liblapack3 libblas-dev liblapack-dev gfortran texlive-latex-base texlive-latex-extra texlive-fonts-recommended
+
+      - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install -e ".[dev]"
-
-      - name: Install LaTeX Compiler (for PDF generation verification)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended
 
       - name: Run Pytest Suite
         run: |
