@@ -21,9 +21,10 @@ OsdagBridge is a modular, shared-core software engineering suite for the automat
 
 ### 2. Task 6: Software Testing & Upstream Issue #103 Fix
 - **Issue #103 Resolution (Non-Uniform Girder Quantities)**: Fixed the structural steel volume and mass calculation in `boq_generator.py`. In bridges with varying interior and exterior girders, each girder is calculated independently. Missing girders in per-girder schemes are caught with explicit `KeyError` exceptions rather than silently duplicating Girder 1.
+- **Strict Numerical Validation & Mass Integrity**: Added validation rejecting non-finite numbers (NaN, inf) and fractional girder counts (e.g., 4.8), coupled with cross-validation of girder mass against section area $\times \rho_{\text{steel}}$ to flag physical discrepancies (>15%).
 - **Comprehensive Test Suite**:
-  - **Unit & Integration Suite**: 27 automated tests covering analysis math, limit state DCR evaluation, JSON I/O, CLI dispatch, and report compilation.
-  - **25-Scenario Functional Test Matrix (`run_functional_tests.py`)**: Covers span variations (10m to 30m), 2 to 6 girders, high skew angles (up to 30°), custom steel/concrete grades (E350, E450, M50), multi-run memory isolation, and live loading cases.
+  - **Unit & Integration Suite**: 30 automated tests covering analysis math, limit state DCR evaluation, JSON I/O, CLI dispatch, partial-quantity chart warnings, mass consistency checks, and report compilation.
+  - **25-Scenario Functional Test Matrix (`run_functional_tests.py`)**: Covers span variations (10m to 30m), 2 to 6 girders, high skew angles (up to 30°), custom steel/concrete grades (E350, E450, M50), multi-run memory isolation, and live loading cases. All 25 scenarios pass cleanly using isolated temporary directories.
 
 ---
 

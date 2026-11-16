@@ -17,6 +17,8 @@ import os
 import sys
 import copy
 import logging
+import tempfile
+import shutil
 
 # Ensure OsdagBridge src is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -409,93 +411,97 @@ def test_boq_missing_girder_rejection_guard():
 def test_chart_generation():
     """Verify high-resolution chart generators with strict engineering integrity."""
     logger.info("Running Chart Visualization Engine Tests (Zero Fabrication)...")
-    test_dir = "/tmp/osdag_test_charts_suite"
-    os.makedirs(test_dir, exist_ok=True)
+    test_dir = tempfile.mkdtemp(prefix="osdag_test_charts_")
 
-    # 1. Strict engineering mode without data must return None (no fabricated 0.76)
-    assert generate_ur_summary_chart({}, test_dir, demo_mode=False) is None
+    try:
+        # 1. Strict engineering mode without data must return None (no fabricated 0.76)
+        assert generate_ur_summary_chart({}, test_dir, demo_mode=False) is None
 
-    # 2. Strict engineering mode with real calculated check
-    output_dict = {"steeldesign.details.bending.utilization_ratio": 0.72}
-    ur_path = generate_ur_summary_chart(output_dict, test_dir, demo_mode=False)
-    assert ur_path is not None and os.path.exists(ur_path)
+        # 2. Strict engineering mode with real calculated check
+        output_dict = {"steeldesign.details.bending.utilization_ratio": 0.72}
+        ur_path = generate_ur_summary_chart(output_dict, test_dir, demo_mode=False)
+        assert ur_path is not None and os.path.exists(ur_path)
 
-    # 3. Explicit demo mode generates benchmark visual
-    demo_path = generate_ur_summary_chart({}, test_dir, demo_mode=True)
-    assert demo_path is not None and os.path.exists(demo_path)
+        # 3. Explicit demo mode generates benchmark visual
+        demo_path = generate_ur_summary_chart({}, test_dir, demo_mode=True)
+        assert demo_path is not None and os.path.exists(demo_path)
 
-    # 4. Material quantity charts
-    quantities = {
-        "steel_girders_wt_total": "32.50",
-        "bracing_top_wt_total": "2.80",
-        "concrete_deck_vol_total": "54.00",
-        "rebar_deck_wt_total": "6.48"
-    }
-    st_path, co_path = generate_material_quantity_chart({}, quantities, test_dir)
-    assert st_path is not None and os.path.exists(st_path)
-    assert co_path is not None and os.path.exists(co_path)
-    logger.info("Chart Generation PASSED (UR: %s, Steel: %s, Concrete: %s).", ur_path, st_path, co_path)
+        # 4. Material quantity charts
+        quantities = {
+            "steel_girders_wt_total": "32.50",
+            "bracing_top_wt_total": "2.80",
+            "concrete_deck_vol_total": "54.00",
+            "rebar_deck_wt_total": "6.48"
+        }
+        st_path, co_path = generate_material_quantity_chart({}, quantities, test_dir)
+        assert st_path is not None and os.path.exists(st_path)
+        assert co_path is not None and os.path.exists(co_path)
+        logger.info("Chart Generation PASSED (UR: %s, Steel: %s, Concrete: %s).", ur_path, st_path, co_path)
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
 
 
 def test_full_report_generation():
     """Verify complete report generation pipeline with LaTeX output and repeated headers."""
     logger.info("Running Full Report Generation Verification...")
-    test_dir = "/tmp/osdag_test_report_suite"
-    os.makedirs(test_dir, exist_ok=True)
+    test_dir = tempfile.mkdtemp(prefix="osdag_test_report_")
 
-    metadata = ReportMetadata(
-        project_name="Bridge Test Suite Verification",
-        project_location="Mumbai, Maharashtra",
-        designer="FOSSEE Test Automation",
-        client="Ministry of Road Transport and Highways",
-        company="FOSSEE, IIT Bombay",
-        job_number="TEST-2026-VERIFY",
-        report_date="November 2026"
-    )
+    try:
+        metadata = ReportMetadata(
+            project_name="Bridge Test Suite Verification",
+            project_location="Mumbai, Maharashtra",
+            designer="FOSSEE Test Automation",
+            client="Ministry of Road Transport and Highways",
+            company="FOSSEE, IIT Bombay",
+            job_number="TEST-2026-VERIFY",
+            report_date="November 2026"
+        )
 
-    options = ReportOptions(
-        sections=['project_info', 'inputs', 'loads', 'analysis', 'design_checks', 'drawings', 'quantities', 'standards', 'references'],
-        include_figures=True,
-        include_toc=True,
-        include_pdf=False
-    )
+        options = ReportOptions(
+            sections=['project_info', 'inputs', 'loads', 'analysis', 'design_checks', 'drawings', 'quantities', 'standards', 'references'],
+            include_figures=True,
+            include_toc=True,
+            include_pdf=False
+        )
 
-    request = ReportRequest(
-        metadata=metadata,
-        options=options,
-        output_dir=test_dir,
-        file_stem="Automated_Test_Report"
-    )
+        request = ReportRequest(
+            metadata=metadata,
+            options=options,
+            output_dir=test_dir,
+            file_stem="Automated_Test_Report"
+        )
 
-    payload = ReportPayload(
-        metadata=metadata,
-        options=options,
-        inputs=build_base_input(span=24.0, n_girders=4),
-        analysis_summary={},
-        design_checks=[],
-        figures=ReportFigures(),
-        log_entries=["Verification test passed"],
-        output_dict={"steeldesign.details.bending.utilization_ratio": 0.75}
-    )
+        payload = ReportPayload(
+            metadata=metadata,
+            options=options,
+            inputs=build_base_input(span=24.0, n_girders=4),
+            analysis_summary={},
+            design_checks=[],
+            figures=ReportFigures(),
+            log_entries=["Verification test passed"],
+            output_dict={"steeldesign.details.bending.utilization_ratio": 0.75}
+        )
 
-    result = generate_report(payload, request)
-    assert result.tex_path and os.path.exists(result.tex_path)
+        result = generate_report(payload, request)
+        assert result.tex_path and os.path.exists(result.tex_path)
 
-    with open(result.tex_path, "r", encoding="utf-8") as f:
-        tex = f.read()
+        with open(result.tex_path, "r", encoding="utf-8") as f:
+            tex = f.read()
 
-    # Assertions on LaTeX formatting
-    assert "bottom=2.8cm" in tex
-    assert "footskip=38pt" in tex
-    assert "tableHeaderBg" in tex
-    assert "ur_summary.png" in tex
-    assert "material_steel.png" in tex
-    assert "material_concrete.png" in tex
-    assert "Footpath and Pedestrian Live Loads" in tex
-    assert "\\endhead" in tex
-    assert "\\endfirsthead" in tex
+        # Assertions on LaTeX formatting
+        assert "bottom=2.8cm" in tex
+        assert "footskip=38pt" in tex
+        assert "tableHeaderBg" in tex
+        assert "ur_summary.png" in tex
+        assert "material_steel.png" in tex
+        assert "material_concrete.png" in tex
+        assert "Footpath and Pedestrian Live Loads" in tex
+        assert "\\endhead" in tex
+        assert "\\endfirsthead" in tex
 
-    logger.info("Full Report Generation PASSED: %s", result.tex_path)
+        logger.info("Full Report Generation PASSED: %s", result.tex_path)
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
 
 
 def run_all_tests():

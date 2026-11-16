@@ -3,13 +3,17 @@ Unit test suite for OsdagBridge Report Generator and Styles.
 Covers:
   - Centralized styles, geometry, and color palettes
   - Chart generation engines (UR summary, material take-offs) with zero fabrication
+  - Incomplete / partial material breakdown warnings and diagnostics
   - LongTable header repetition (\endhead, \endfirsthead)
   - Chapter 3, 5, 7 refactoring and BOM volume calculations
   - Regression testing for Issue #103 (missing girder detection, no silent fallbacks)
   - Parameterized material assumptions
+  - Input validation: rejection of NaN, inf, fractional girder counts, negative spans
+  - Mass vs. volume consistency validation ($m \approx A \times \rho$)
   - Optional PDF compilation verification
 """
 
+import math
 import os
 import shutil
 import pytest
@@ -80,7 +84,9 @@ def test_chart_generation_engines_zero_fabrication(tmp_path):
     tmp_dir = str(tmp_path)
 
     # 1. Strict engineering mode without data must return None (NO fabricated numbers)
-    assert generate_ur_summary_chart({}, tmp_dir, demo_mode=False) is None
+    diag = {}
+    assert generate_ur_summary_chart({}, tmp_dir, demo_mode=False, diagnostics=diag) is None
+    assert "ur_summary: no calculated utilization ratios present in output_dict" in diag.get("charts_skipped", [])
 
     # 2. Strict engineering mode with valid 0.0 UR must be accepted (not treated as missing)
     valid_zero_out = {"steeldesign.details.bending.utilization_ratio": 0.0}
@@ -101,6 +107,21 @@ def test_chart_generation_engines_zero_fabrication(tmp_path):
     st_path, co_path = generate_material_quantity_chart({}, quantities, tmp_dir)
     assert st_path is not None and os.path.exists(st_path)
     assert co_path is not None and os.path.exists(co_path)
+
+
+def test_material_chart_partial_quantities_warning(tmp_path):
+    """Verify that partial material quantities trigger explicit warnings and diagnostics."""
+    tmp_dir = str(tmp_path)
+    # Only Main Girders available; bracing and studs are missing
+    partial_quantities = {
+        "steel_girders_wt_total": "28.00"
+    }
+    diag = {}
+    st_path, co_path = generate_material_quantity_chart({}, partial_quantities, tmp_dir, demo_mode=False, diagnostics=diag)
+
+    assert st_path is not None and os.path.exists(st_path)
+    # Must record warning in diagnostics that partial quantities were plotted
+    assert any("Partial breakdown" in w for w in diag.get("warnings", []))
 
 
 def test_boq_non_uniform_girder_volume():
@@ -177,6 +198,55 @@ def test_boq_configurable_material_assumptions():
     assert quantities["_assumptions"]["concrete_density_t_m3"] == 2.4
 
 
+def test_boq_invalid_numerical_inputs_rejection():
+    """Verify that NaN, infinity, fractional girder counts, and negative values are strictly rejected."""
+    base = {
+        KEY_SPAN: 20.0,
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_DECK_THICKNESS: 220,
+        "typical_section.overall_bridge_width": 10.0,
+        "member_properties.girder_details.section_properties.area": 0.04
+    }
+
+    # 1. Fractional girder count (e.g. 4.8) must be rejected
+    m_fractional = dict(base, **{KEY_TS_NO_OF_GIRDERS: 4.8})
+    q_frac = calculate_material_quantities(m_fractional, {})
+    assert any("Girder count must be a positive integer" in w for w in q_frac["_warnings"])
+    assert q_frac["steel_girders_vol_total"] == "N.A."
+
+    # 2. NaN span must be rejected
+    m_nan = dict(base, **{KEY_SPAN: float("nan")})
+    q_nan = calculate_material_quantities(m_nan, {})
+    assert any("Bridge span must be a positive, finite number" in w for w in q_nan["_warnings"])
+
+    # 3. Infinite span must be rejected
+    m_inf = dict(base, **{KEY_SPAN: float("inf")})
+    q_inf = calculate_material_quantities(m_inf, {})
+    assert any("Bridge span must be a positive, finite number" in w for w in q_inf["_warnings"])
+
+    # 4. Negative girder count
+    m_neg = dict(base, **{KEY_TS_NO_OF_GIRDERS: -3})
+    q_neg = calculate_material_quantities(m_neg, {})
+    assert any("Girder count must be a positive integer" in w for w in q_neg["_warnings"])
+
+
+def test_boq_mass_vs_volume_consistency_warning():
+    """Verify that a >15% discrepancy between provided mass and theoretical mass generates a diagnostic warning."""
+    # Area = 0.040 m^2, steel density = 7850 kg/m^3 -> expected mass = 314.0 kg/m
+    # If provided mass is 50.0 kg/m, it deviates by >80%
+    inputs = {
+        KEY_SPAN: 20.0,
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_DECK_THICKNESS: 220,
+        "typical_section.overall_bridge_width": 10.0,
+        "member_properties.girder_details.section_properties.area": 0.040,
+        "member_properties.girder_details.section_properties.mass": 50.0  # heavily inconsistent
+    }
+    quantities = calculate_material_quantities(inputs, {})
+    warnings = quantities.get("_warnings", [])
+    assert any("deviates by" in w and "theoretical mass" in w for w in warnings)
+
+
 def test_full_report_tex_assembly(tmp_path):
     """Verify full report generation produces valid .tex with charts and repeated headers."""
     out_dir = str(tmp_path)
@@ -226,6 +296,8 @@ def test_full_report_tex_assembly(tmp_path):
 
     result = generate_report(payload, request)
     assert result.tex_path and os.path.exists(result.tex_path)
+    assert isinstance(result.diagnostics, dict)
+    assert "charts_generated" in result.diagnostics
 
     with open(result.tex_path, "r", encoding="utf-8") as f:
         tex = f.read()

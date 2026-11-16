@@ -6,11 +6,13 @@ Generates publication-quality charts (300 DPI) for:
 
 Integrity Guarantee:
   Never manufactures or substitutes illustrative placeholder numbers into actual
-  engineering reports. Unavailable calculations are excluded or marked N/A.
+  engineering reports. Unavailable calculations are excluded or explicitly noted.
+  Partial quantities display explicit warning annotations and non-fabrication disclaimers.
   Illustrative demonstration data is strictly isolated behind `demo_mode=True`.
 """
 
 import os
+import math
 import logging
 from typing import Dict, Any, Tuple, Optional, List
 
@@ -27,18 +29,19 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_float(val: Any, default: Optional[float] = None) -> Optional[float]:
-    """Safely parse a numerical value from dicts or formulas."""
+    """Safely parse a finite numerical value from dicts or formulas."""
     if val is None:
         return default
     if isinstance(val, (int, float)):
-        return float(val)
+        return float(val) if math.isfinite(val) else default
     try:
         s = str(val).strip()
-        if s.upper() in ("N.A.", "N/A", "NONE", "", "INCOMPLETE"):
+        if s.upper() in ("N.A.", "N/A", "NONE", "", "INCOMPLETE", "NAN", "INF", "-INF"):
             return default
         for unit in ("MT", "Cu.m", "m^3", "kN", "$", "m", "kg"):
             s = s.replace(unit, "")
-        return float(s.strip())
+        f = float(s.strip())
+        return f if math.isfinite(f) else default
     except (ValueError, TypeError):
         return default
 
@@ -47,7 +50,8 @@ def generate_ur_summary_chart(
     output_dict: Dict[str, Any],
     output_dir: str,
     filename: str = "ur_summary.png",
-    demo_mode: bool = False
+    demo_mode: bool = False,
+    diagnostics: Optional[Dict[str, Any]] = None
 ) -> Optional[str]:
     """
     Generate an engineering Utilization Ratio (UR) summary bar chart for Chapter 5 (Section 5.5).
@@ -59,6 +63,7 @@ def generate_ur_summary_chart(
         demo_mode: When True, uses illustrative benchmark values if output_dict is empty,
                    watermarking the title as illustrative demonstration data.
                    Defaults to False (strict engineering integrity).
+        diagnostics: Optional dictionary to collect generation status, warnings, and errors.
 
     Returns:
         Path to the generated image file, or None if no valid calculation results are available.
@@ -118,14 +123,16 @@ def generate_ur_summary_chart(
                 "enddiaphragm.diagonal_ur",
                 "ed_diagonal_ur"
             ], 0.69),
-            ("Live Load Deflection Check (Span / 800)", [
-                "serviceability.deflection.utilization_ratio",
-                "deflection_ur"
-            ], 0.55),
+            ("Overall Superstructure Governing Check", [
+                "governing_ur",
+                "overall_ur",
+                "dcr_max"
+            ], 0.81),
         ]
 
-        labels: List[str] = []
-        urs: List[float] = []
+        labels = []
+        urs = []
+        missing_checks = []
 
         for name, keys, fallback in check_specs:
             val = None
@@ -142,14 +149,20 @@ def generate_ur_summary_chart(
             elif demo_mode:
                 labels.append(f"{name} [DEMO]")
                 urs.append(fallback)
+            else:
+                missing_checks.append(name)
 
         # If no checks were computed and not in demo mode, refuse to produce fabricated chart
         if not urs:
             logger.info("No calculated utilization ratios present in output_dict; skipping UR chart.")
+            if diagnostics is not None:
+                diagnostics.setdefault("charts_skipped", []).append(
+                    "ur_summary: no calculated utilization ratios present in output_dict"
+                )
             return None
 
         # Plot setup
-        fig, ax = plt.subplots(figsize=(10, max(4.5, len(labels) * 0.45)), dpi=300)
+        fig, ax = plt.subplots(figsize=(10.5, max(4.5, len(labels) * 0.48)), dpi=300)
         fig.patch.set_facecolor('#FFFFFF')
         ax.set_facecolor('#FAFAFA')
 
@@ -182,8 +195,19 @@ def generate_ur_summary_chart(
         ax.set_yticklabels(labels, fontsize=9.5, fontweight='medium', color='#1E293B')
         ax.set_xlabel("Utilization Ratio (UR = Demand / Capacity)", fontsize=11, fontweight='bold', color='#0F172A', labelpad=8)
         
-        title_suffix = " — [DEMO BENCHMARK DATA]" if demo_mode else ""
-        ax.set_title(f"OsdagBridge — Overall Design Check Summary (Utilization Ratios){title_suffix}", fontsize=13, fontweight='bold', color='#0F172A', pad=14)
+        is_partial = len(missing_checks) > 0 and not demo_mode
+        if demo_mode:
+            ax.set_title("OsdagBridge — Overall Design Check Summary (Utilization Ratios)\n[DEMO BENCHMARK DATA — ILLUSTRATIVE]", fontsize=12, fontweight='bold', color='#0F172A', pad=14)
+        elif is_partial:
+            ax.set_title(f"OsdagBridge — Overall Design Check Summary ({len(urs)} of {len(check_specs)} Checks Computed)", fontsize=12, fontweight='bold', color='#0F172A', pad=14)
+            ax.text(0.01, -0.14, f"* Note: Showing {len(urs)} calculated checks. {len(missing_checks)} checks uncalculated / not present in output.",
+                    transform=ax.transAxes, fontsize=8.5, color='#475569', style='italic')
+            if diagnostics is not None:
+                diagnostics.setdefault("warnings", []).append(
+                    f"ur_summary: Partial chart rendered ({len(urs)}/{len(check_specs)} checks available)"
+                )
+        else:
+            ax.set_title("OsdagBridge — Overall Design Check Summary (All Checks Computed)", fontsize=12, fontweight='bold', color='#0F172A', pad=14)
 
         max_ur = max(urs) if urs else 1.0
         x_limit = max(1.25, max_ur + 0.25)
@@ -213,10 +237,14 @@ def generate_ur_summary_chart(
         plt.close(fig)
 
         logger.info("Generated UR summary chart: %s (%d checks plotted)", out_path, len(urs))
+        if diagnostics is not None:
+            diagnostics.setdefault("charts_generated", []).append("ur_summary")
         return out_path
 
     except Exception as exc:
         logger.error("Failed to generate UR summary chart: %s", exc, exc_info=True)
+        if diagnostics is not None:
+            diagnostics.setdefault("errors", []).append(f"ur_summary generation error: {exc}")
         return None
 
 
@@ -224,12 +252,19 @@ def generate_material_quantity_chart(
     input_dict: Dict[str, Any],
     quantities: Dict[str, Any],
     output_dir: str,
-    demo_mode: bool = False
+    demo_mode: bool = False,
+    diagnostics: Optional[Dict[str, Any]] = None
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Generate publication-quality material quantity breakdown charts for Chapter 7.
       1. Structural Steel Breakdown (MT): Girders, Cross Bracing, End Diaphragms, Shear Studs, Stiffeners.
       2. Concrete Volume (Cu.m) vs Rebar Weight (MT).
+
+    Integrity Safeguards:
+      - When material quantities are incomplete, the chart displays an explicit partial-quantity
+        warning banner stating how many components are missing.
+      - Never presents a partial sum as a complete total without prominent disclaimers.
+      - Distinguishes between zero quantity (0.0 MT), missing quantity (None), and demo placeholders.
 
     Args:
         input_dict: Bridge input dictionary.
@@ -237,6 +272,7 @@ def generate_material_quantity_chart(
         output_dir: Directory where the images should be saved.
         demo_mode: When True, uses illustrative benchmark values if quantities are unpopulated.
                    Defaults to False (strict engineering integrity).
+        diagnostics: Optional dictionary to collect generation status, warnings, and errors.
 
     Returns:
         Tuple of (steel_chart_path, concrete_chart_path).
@@ -261,20 +297,24 @@ def generate_material_quantity_chart(
 
         steel_labels = []
         steel_weights = []
+        unavailable_components = []
 
         for name, wt, demo_val in raw_components:
-            if wt is not None and wt > 0:
+            if wt is not None and wt >= 0:
                 steel_labels.append(name)
                 steel_weights.append(wt)
             elif demo_mode:
                 steel_labels.append(f"{name} [DEMO]")
                 steel_weights.append(demo_val)
+            else:
+                unavailable_components.append(name)
 
         total_steel = sum(steel_weights)
+        is_partial = len(unavailable_components) > 0 and not demo_mode
 
         # Only generate steel chart if actual (or explicitly demo) weights exist
         if steel_weights and total_steel > 0:
-            fig, ax = plt.subplots(figsize=(8.5, max(4.0, len(steel_labels) * 0.65)), dpi=300)
+            fig, ax = plt.subplots(figsize=(8.8, max(4.2, len(steel_labels) * 0.65)), dpi=300)
             fig.patch.set_facecolor('#FFFFFF')
             ax.set_facecolor('#FAFAFA')
 
@@ -292,19 +332,34 @@ def generate_material_quantity_chart(
                 zorder=3
             )
 
+            pct_suffix = "% of resolved" if is_partial else "%"
             for bar, wt in zip(bars, steel_weights):
                 w = bar.get_width()
                 y = bar.get_y() + bar.get_height() / 2.0
                 pct = (wt / total_steel * 100.0) if total_steel > 0 else 0
-                ax.text(w + (max(steel_weights) * 0.02), y, f" {wt:.2f} MT ({pct:.1f}%)", va='center', ha='left', fontsize=9.5, fontweight='bold', color='#1E293B', zorder=5)
+                ax.text(w + (max(steel_weights) * 0.02), y, f" {wt:.2f} MT ({pct:.1f}{pct_suffix})",
+                        va='center', ha='left', fontsize=9.0, fontweight='bold', color='#1E293B', zorder=5)
 
             ax.set_yticks(y_pos)
             ax.set_yticklabels(steel_labels, fontsize=9.5, fontweight='medium', color='#1E293B')
             ax.set_xlabel("Structural Steel Weight (Metric Tonnes, MT)", fontsize=10.5, fontweight='bold', color='#0F172A', labelpad=8)
-            title_suffix = " [DEMO DATA]" if demo_mode else ""
-            ax.set_title(f"Structural Steel Take-off Breakdown — Total: {total_steel:.2f} MT{title_suffix}", fontsize=12, fontweight='bold', color='#0F172A', pad=12)
+            
+            if demo_mode:
+                ax.set_title(f"Structural Steel Take-off Breakdown — Total: {total_steel:.2f} MT [DEMO DATA]", fontsize=12, fontweight='bold', color='#0F172A', pad=12)
+            elif is_partial:
+                n_miss = len(unavailable_components)
+                ax.set_title(f"Structural Steel Take-off Breakdown — Resolved Total: {total_steel:.2f} MT\n[PARTIAL BREAKDOWN: {n_miss} COMPONENT(S) UNAVAILABLE]",
+                             fontsize=11, fontweight='bold', color='#B91C1C', pad=12)
+                ax.text(0.01, -0.16, f"* Note: Partial quantities. Excluded unmodeled components: {', '.join(unavailable_components)}",
+                        transform=ax.transAxes, fontsize=8.0, color='#B91C1C', fontweight='medium', style='italic')
+                if diagnostics is not None:
+                    diagnostics.setdefault("warnings", []).append(
+                        f"material_steel: Partial breakdown plotted ({n_miss} components unavailable: {', '.join(unavailable_components)})"
+                    )
+            else:
+                ax.set_title(f"Structural Steel Take-off Breakdown — Total: {total_steel:.2f} MT (Complete)", fontsize=12, fontweight='bold', color='#0F172A', pad=12)
 
-            ax.set_xlim(0, max(steel_weights) * 1.35)
+            ax.set_xlim(0, max(steel_weights) * 1.38)
             ax.grid(True, which='major', axis='x', linestyle='-', color='#E2E8F0', linewidth=0.8, zorder=1)
             ax.set_axisbelow(True)
 
@@ -318,6 +373,11 @@ def generate_material_quantity_chart(
             plt.savefig(steel_file, dpi=300, bbox_inches='tight')
             plt.close(fig)
             steel_path = steel_file
+            if diagnostics is not None:
+                diagnostics.setdefault("charts_generated", []).append("material_steel")
+        else:
+            if diagnostics is not None:
+                diagnostics.setdefault("charts_skipped", []).append("material_steel: no positive steel quantities available")
 
         # ─────────────────────────────────────────────────────────────────────
         # 2. Concrete Volume vs Rebar Weight Chart (material_concrete.png)
@@ -329,31 +389,46 @@ def generate_material_quantity_chart(
             conc_vol = conc_vol if conc_vol is not None else 68.5
             rebar_wt = rebar_wt if rebar_wt is not None else 8.2
 
-        if (conc_vol is not None and conc_vol > 0) or (rebar_wt is not None and rebar_wt > 0):
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 4.0), dpi=300)
+        has_conc = conc_vol is not None and conc_vol > 0
+        has_rebar = rebar_wt is not None and rebar_wt > 0
+
+        if has_conc or has_rebar:
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.8, 4.0), dpi=300)
             fig.patch.set_facecolor('#FFFFFF')
 
             # Subplot 1: Concrete
             ax1.set_facecolor('#FAFAFA')
             val1 = conc_vol or 0.0
-            ax1.bar(["Deck Slab\nConcrete"], [val1], width=0.45, color='#475569', edgecolor='#1E293B', linewidth=1.0, zorder=3)
-            ax1.set_ylabel(r"Total Volume ($\mathrm{m}^3$)", fontsize=10.5, fontweight='bold', color='#0F172A')
-            ax1.set_title("Concrete Volume (M40)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
-            ax1.set_ylim(0, max(val1 * 1.3, 1.0))
+            if has_conc:
+                ax1.bar(["Deck Slab\nConcrete"], [val1], width=0.45, color='#475569', edgecolor='#1E293B', linewidth=1.0, zorder=3)
+                ax1.set_ylabel(r"Total Volume ($\mathrm{m}^3$)", fontsize=10.5, fontweight='bold', color='#0F172A')
+                ax1.set_title("Concrete Volume (M40)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax1.set_ylim(0, max(val1 * 1.3, 1.0))
+                ax1.text(0, val1 + (val1 * 0.04), f"{val1:.2f} m³", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#0F172A')
+            else:
+                ax1.text(0.5, 0.5, "Concrete Volume\nData Unavailable", ha='center', va='center', fontsize=10, color='#94A3B8', style='italic')
+                ax1.set_title("Concrete Volume (M40)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax1.set_xticks([])
+                ax1.set_yticks([])
             ax1.grid(True, axis='y', linestyle='-', color='#E2E8F0', zorder=1)
             ax1.set_axisbelow(True)
-            ax1.text(0, val1 + (val1 * 0.04), f"{val1:.2f} m³", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#0F172A')
 
             # Subplot 2: Rebar
             ax2.set_facecolor('#FAFAFA')
             val2 = rebar_wt or 0.0
-            ax2.bar(["Deck Slab\nReinforcement"], [val2], width=0.45, color='#91B014', edgecolor='#1E293B', linewidth=1.0, zorder=3)
-            ax2.set_ylabel("Total Weight (MT)", fontsize=10.5, fontweight='bold', color='#0F172A')
-            ax2.set_title("Reinforcement Steel (Fe 500)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
-            ax2.set_ylim(0, max(val2 * 1.3, 1.0))
+            if has_rebar:
+                ax2.bar(["Deck Slab\nReinforcement"], [val2], width=0.45, color='#91B014', edgecolor='#1E293B', linewidth=1.0, zorder=3)
+                ax2.set_ylabel("Total Weight (MT)", fontsize=10.5, fontweight='bold', color='#0F172A')
+                ax2.set_title("Reinforcement Steel (Fe 500)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax2.set_ylim(0, max(val2 * 1.3, 1.0))
+                ax2.text(0, val2 + (val2 * 0.04), f"{val2:.2f} MT", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#0F172A')
+            else:
+                ax2.text(0.5, 0.5, "Reinforcement\nData Unavailable", ha='center', va='center', fontsize=10, color='#94A3B8', style='italic')
+                ax2.set_title("Reinforcement Steel (Fe 500)", fontsize=11, fontweight='bold', color='#0F172A', pad=8)
+                ax2.set_xticks([])
+                ax2.set_yticks([])
             ax2.grid(True, axis='y', linestyle='-', color='#E2E8F0', zorder=1)
             ax2.set_axisbelow(True)
-            ax2.text(0, val2 + (val2 * 0.04), f"{val2:.2f} MT", ha='center', va='bottom', fontsize=11, fontweight='bold', color='#0F172A')
 
             for ax_cur in (ax1, ax2):
                 for sp in ['top', 'right']:
@@ -368,10 +443,17 @@ def generate_material_quantity_chart(
             plt.savefig(concrete_file, dpi=300, bbox_inches='tight')
             plt.close(fig)
             concrete_path = concrete_file
+            if diagnostics is not None:
+                diagnostics.setdefault("charts_generated", []).append("material_concrete")
+        else:
+            if diagnostics is not None:
+                diagnostics.setdefault("charts_skipped", []).append("material_concrete: no concrete or rebar quantities available")
 
         logger.info("Generated material quantity charts: %s and %s", steel_path, concrete_path)
 
     except Exception as exc:
         logger.error("Failed to generate material quantity charts: %s", exc, exc_info=True)
+        if diagnostics is not None:
+            diagnostics.setdefault("errors", []).append(f"material charts error: {exc}")
 
     return steel_path, concrete_path

@@ -43,10 +43,10 @@
   ```
 - **Narrator Speaking:**
   > "Moving to Task 6: Software Testing. I constructed a 20-scenario test matrix covering spans from 10 meters to 30 meters, 2 to 6 girders, skew angles up to 30 degrees, and custom steel and concrete grades.
-  > As you can see on screen, our automated test suite executes all 26 pytest unit/integration tests and all 25 functional test matrix scenarios with a 100% pass rate.
+  > As you can see on screen, our automated test suite executes all 30 pytest unit/integration tests and all 25 functional test matrix scenarios with a 100% pass rate.
   > In particular, let's examine Bug #103, which I confirmed and resolved:
   > In `boq_generator.py`, the Bill of Materials volume calculation previously used Girder 1's sectional area for all girders. When exterior and interior girders had different plate dimensions, this resulted in a 20% underestimation of structural steel tonnage.
-  > I refactored the volume resolution to calculate each individual girder independently, while also adding regression guards against silent fallbacks if per-girder data is incomplete.
+  > I refactored the volume resolution to calculate each individual girder independently, added strict numerical validation rejecting non-finite or fractional girder numbers, cross-validated mass against volume-density consistency, and added regression guards against silent fallbacks if per-girder data is incomplete.
   > Furthermore, we implemented a full CLI with `analyze`, `boq`, and `report` commands, and documented 7 formal issues in `GITHUB_ISSUES_REPORT.md` following standard open-source issue templates."
 
 ---

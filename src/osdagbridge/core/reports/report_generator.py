@@ -436,6 +436,7 @@ class ReportPayload:
 class ReportResult:
     pdf_path: Optional[str]
     tex_path: Optional[str]
+    diagnostics: Dict[str, Any] = field(default_factory=dict)
 
 
 class ReportDataBridge:
@@ -850,6 +851,13 @@ def generate_report(payload, request):
         pdf_path = os.path.join(request.output_dir, request.file_stem + '.pdf')
         tex_path = os.path.join(request.output_dir, request.file_stem + '.tex')
 
+        diagnostics: Dict[str, Any] = {
+            "charts_generated": [],
+            "charts_skipped": [],
+            "warnings": [],
+            "errors": []
+        }
+
         # Write to temp dir first, compile there, then copy back
         with tempfile.TemporaryDirectory() as tmp_dir:
 
@@ -887,22 +895,29 @@ def generate_report(payload, request):
             # Compute and inject quantities for Chapter 7
             quantities = calculate_material_quantities(payload.inputs, payload.output_dict)
             payload.inputs.update(quantities)
+            if quantities.get("_warnings"):
+                diagnostics["warnings"].extend(quantities["_warnings"])
 
             # Generate chart visualizations
             try:
                 from osdagbridge.core.reports.plot_utils import generate_ur_summary_chart, generate_material_quantity_chart
                 is_demo = getattr(payload.options, "demo_mode", False)
-                ur_chart_path = generate_ur_summary_chart(payload.output_dict, tmp_images, demo_mode=is_demo)
+                ur_chart_path = generate_ur_summary_chart(
+                    payload.output_dict, tmp_images, demo_mode=is_demo, diagnostics=diagnostics
+                )
                 if ur_chart_path:
                     fig_paths['ur_summary'] = ur_chart_path.replace('\\', '/')
 
-                steel_chart, conc_chart = generate_material_quantity_chart(payload.inputs, quantities, tmp_images, demo_mode=is_demo)
+                steel_chart, conc_chart = generate_material_quantity_chart(
+                    payload.inputs, quantities, tmp_images, demo_mode=is_demo, diagnostics=diagnostics
+                )
                 if steel_chart:
                     fig_paths['material_steel'] = steel_chart.replace('\\', '/')
                 if conc_chart:
                     fig_paths['material_concrete'] = conc_chart.replace('\\', '/')
             except Exception as chart_err:
                 logger.warning("Chart generation failed: %s", chart_err)
+                diagnostics["errors"].append(f"Chart engine failure: {chart_err}")
 
             # ── Assemble LaTeX document (fig_paths now has tmp_dir paths) ──
             bridge = ReportDataBridge(payload.output_dict, payload.inputs, payload)
@@ -985,16 +1000,21 @@ def generate_report(payload, request):
 
         if os.path.exists(pdf_path):
             logger.info("Report generated: %s", pdf_path)
-            return ReportResult(pdf_path=pdf_path, tex_path=tex_path)
+            return ReportResult(pdf_path=pdf_path, tex_path=tex_path, diagnostics=diagnostics)
 
+        diagnostics["warnings"].append("pdflatex ran or was absent, no PDF was produced; LaTeX source retained.")
         logger.error("pdflatex ran but no PDF was produced.")
         if 'res' in locals():
             logger.error("pdflatex STDOUT:\n%s", res.stdout.decode('utf-8', 'ignore'))
             logger.error("pdflatex STDERR:\n%s", res.stderr.decode('utf-8', 'ignore'))
-        return ReportResult(pdf_path=None, tex_path=tex_path)
+        return ReportResult(pdf_path=None, tex_path=tex_path, diagnostics=diagnostics)
 
     except Exception as exc:
         logger.error("generate_report failed: %s", exc, exc_info=True)
+        if 'diagnostics' in locals():
+            diagnostics["errors"].append(f"generate_report failed: {exc}")
+        else:
+            diagnostics = {"charts_generated": [], "charts_skipped": [], "warnings": [], "errors": [str(exc)]}
         if tex_path and os.path.exists(tex_path):
-            return ReportResult(pdf_path=None, tex_path=tex_path)
-        return ReportResult(pdf_path=None, tex_path=None)
+            return ReportResult(pdf_path=None, tex_path=tex_path, diagnostics=diagnostics)
+        return ReportResult(pdf_path=None, tex_path=None, diagnostics=diagnostics)
