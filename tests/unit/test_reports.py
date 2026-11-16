@@ -341,7 +341,8 @@ def test_pdf_compilation_when_toolchain_present(tmp_path):
         options=options,
         inputs={KEY_SPAN: 15.0, KEY_TS_NO_OF_GIRDERS: 3},
         analysis_summary={},
-        design_checks=[]
+        design_checks=[],
+        figures=ReportFigures()
     )
     result = generate_report(payload, request)
     assert result.pdf_path and os.path.exists(result.pdf_path)

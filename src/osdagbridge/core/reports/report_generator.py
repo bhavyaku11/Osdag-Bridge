@@ -426,7 +426,7 @@ class ReportPayload:
     inputs:           dict
     analysis_summary: dict
     design_checks:    list
-    figures:          ReportFigures
+    figures:          ReportFigures = field(default_factory=ReportFigures)
     log_entries:      List[str] = field(default_factory=list)
     output_dict:      dict = field(default_factory=dict)
     figure_data:      dict = field(default_factory=dict)  # {attr: bytes} — cleared after writing to tmpdir
