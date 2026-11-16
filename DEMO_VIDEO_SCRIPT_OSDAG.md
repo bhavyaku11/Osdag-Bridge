@@ -34,19 +34,20 @@
 ---
 
 ### [02:00 - 03:30] Task 6: Software Testing & Bug #103 Fix Demonstration
-- **Visual:** Terminal running `python3 osdag/tests/run_functional_tests.py` and pytest.
+- **Visual:** Terminal running `pytest -v` and `python3 tests/run_functional_tests.py`.
 - **Actions in Terminal:**
   ```bash
-  python3 osdag/tests/run_functional_tests.py
-  PYTHONPATH=osdag/OsdagBridge/src pytest osdag/OsdagBridge/tests/unit/test_reports.py -v
+  pytest -v
+  python3 tests/run_functional_tests.py
+  osdagbridge boq resources/sample_bridge_model.json
   ```
 - **Narrator Speaking:**
   > "Moving to Task 6: Software Testing. I constructed a 20-scenario test matrix covering spans from 10 meters to 30 meters, 2 to 6 girders, skew angles up to 30 degrees, and custom steel and concrete grades.
-  > As you can see on screen, our automated test suite executes all 10 core functional tests with a 100% pass rate.
+  > As you can see on screen, our automated test suite executes all 26 pytest unit/integration tests and all 25 functional test matrix scenarios with a 100% pass rate.
   > In particular, let's examine Bug #103, which I confirmed and resolved:
   > In `boq_generator.py`, the Bill of Materials volume calculation previously used Girder 1's sectional area for all girders. When exterior and interior girders had different plate dimensions, this resulted in a 20% underestimation of structural steel tonnage.
-  > I refactored the volume loop to sum each individual girder's cross-sectional area, as verified in our test suite where the true volume of 4.00 cubic meters matches the reported volume exactly.
-  > I have also documented 7 formal issues in `GITHUB_ISSUES_REPORT.md` following standard open-source issue templates."
+  > I refactored the volume resolution to calculate each individual girder independently, while also adding regression guards against silent fallbacks if per-girder data is incomplete.
+  > Furthermore, we implemented a full CLI with `analyze`, `boq`, and `report` commands, and documented 7 formal issues in `GITHUB_ISSUES_REPORT.md` following standard open-source issue templates."
 
 ---
 

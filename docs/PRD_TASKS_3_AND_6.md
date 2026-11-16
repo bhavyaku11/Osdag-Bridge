@@ -37,7 +37,7 @@ The current report generation in `core/reports/`:
 | ID | Requirement | Architectural Solution | Target Files |
 |---|---|---|---|
 | **TR-3.1** | **Centralized Style & Theme System** | Create `styles.py` / `theme.py` as the single source of truth for color palettes, font definitions, table padding, margins, and header/footer configurations. | `core/reports/styles.py` |
-| **TR-3.2** | **Repeated Table Headers Across Pages** | Implement PyLaTeX `LongTable` or standard LaTeX `longtable` environment with `\firstendhead`, `\endhead`, `\endfoot`, and `\endlastfoot`. | `core/reports/report_utils.py`, `chap2.py` - `chap7.py` |
+| **TR-3.2** | **Repeated Table Headers Across Pages** | Implement PyLaTeX `LongTable` or standard LaTeX `longtable` environment with `\endfirsthead`, `\endhead`, `\endfoot`, and `\endlastfoot`. | `core/reports/report_utils.py`, `chap2.py` - `chap7.py` |
 | **TR-3.3** | **Footer Overlap & Geometry Fixes** | Adjust geometry package parameters (`headsep`, `footskip`, `bottom=2.5cm`), row heights, and buffer thresholds (`\pagebreak`, `\keepwithnext`) to eliminate page bleed. | `core/reports/report_generator.py`, `templates/` |
 | **TR-3.4** | **Load & Geometry Table Refactoring** | Separate Chapter 3 loads into distinct tables: (a) Vehicle Live Loads (IRC 70R, Class A, Class SV, etc.) with impact factors, braking, and centrifugal forces; (b) Footway/Pedestrian loads. | `core/reports/chap3.py` |
 | **TR-3.5** | **Utilization Ratio (UR) Visualizations** | Programmatically generate bar charts for primary elements (Plate Girders, Concrete Deck Slab, Cross Bracing, End Diaphragms) with a red dashed threshold line at `UR = 1.0` embedded in Section 5.5. | `core/reports/chap5.py`, `core/reports/plot_utils.py` |

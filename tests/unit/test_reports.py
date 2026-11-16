@@ -2,12 +2,16 @@ r"""
 Unit test suite for OsdagBridge Report Generator and Styles.
 Covers:
   - Centralized styles, geometry, and color palettes
-  - Chart generation engines (UR summary, material take-offs)
+  - Chart generation engines (UR summary, material take-offs) with zero fabrication
   - LongTable header repetition (\endhead, \endfirsthead)
   - Chapter 3, 5, 7 refactoring and BOM volume calculations
+  - Regression testing for Issue #103 (missing girder detection, no silent fallbacks)
+  - Parameterized material assumptions
+  - Optional PDF compilation verification
 """
 
 import os
+import shutil
 import pytest
 
 from osdagbridge.core.utils.common import (
@@ -25,7 +29,7 @@ from osdagbridge.core.utils.common import (
 from osdagbridge.core.reports.styles import ReportStyle, ColorPalette, GeometryConfig, TableFormatting
 from osdagbridge.core.reports.report_utils import build_table_with_headers
 from osdagbridge.core.reports.plot_utils import generate_ur_summary_chart, generate_material_quantity_chart
-from osdagbridge.core.boq.boq_generator import calculate_material_quantities
+from osdagbridge.core.boq.boq_generator import calculate_material_quantities, resolve_girder_value
 from osdagbridge.core.reports.report_generator import (
     ReportMetadata,
     ReportOptions,
@@ -71,14 +75,30 @@ def test_build_longtable_header():
     assert "Row 1 & Value 1" in lt_str
 
 
-def test_chart_generation_engines(tmp_path):
-    """Verify UR summary and material quantity chart engines."""
+def test_chart_generation_engines_zero_fabrication(tmp_path):
+    """Verify that chart engines enforce engineering integrity and never fabricate results."""
     tmp_dir = str(tmp_path)
-    ur_path = generate_ur_summary_chart({}, tmp_dir)
-    assert ur_path is not None
-    assert os.path.exists(ur_path)
 
-    st_path, co_path = generate_material_quantity_chart({}, {}, tmp_dir)
+    # 1. Strict engineering mode without data must return None (NO fabricated numbers)
+    assert generate_ur_summary_chart({}, tmp_dir, demo_mode=False) is None
+
+    # 2. Strict engineering mode with valid 0.0 UR must be accepted (not treated as missing)
+    valid_zero_out = {"steeldesign.details.bending.utilization_ratio": 0.0}
+    zero_chart = generate_ur_summary_chart(valid_zero_out, tmp_dir, demo_mode=False)
+    assert zero_chart is not None and os.path.exists(zero_chart)
+
+    # 3. Explicit demo mode generates benchmark visual
+    demo_ur = generate_ur_summary_chart({}, tmp_dir, demo_mode=True)
+    assert demo_ur is not None and os.path.exists(demo_ur)
+
+    # 4. Populated material quantities generate valid breakdown charts
+    quantities = {
+        "steel_girders_wt_total": "32.50",
+        "bracing_top_wt_total": "2.80",
+        "concrete_deck_vol_total": "54.00",
+        "rebar_deck_wt_total": "6.48"
+    }
+    st_path, co_path = generate_material_quantity_chart({}, quantities, tmp_dir)
     assert st_path is not None and os.path.exists(st_path)
     assert co_path is not None and os.path.exists(co_path)
 
@@ -101,6 +121,60 @@ def test_boq_non_uniform_girder_volume():
     total_vol = float(quantities["steel_girders_vol_total"])
     true_vol = (2 * 0.040 + 2 * 0.060) * 20.0
     assert abs(total_vol - true_vol) < 0.01
+    assert not quantities.get("_warnings")
+
+
+def test_boq_missing_girder_rejection_issue_103():
+    """Verify that when a per-girder scheme is active and Girder 3 is missing, it is NOT silently replaced by G1."""
+    inputs = {
+        KEY_SPAN: 20.0,
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_GIRDER_SPACING: 2.5,
+        KEY_TS_DECK_OVERHANG: 1.2,
+        KEY_TS_DECK_THICKNESS: 220,
+        "typical_section.overall_bridge_width": 9.9,
+        "member_properties.girder_details.section_properties.area.G1.M1": 0.040,
+        "member_properties.girder_details.section_properties.area.G2.M1": 0.060,
+        # Girder 3 is intentionally missing
+        "member_properties.girder_details.section_properties.area.G4.M1": 0.040,
+    }
+    base_key = "member_properties.girder_details.section_properties.area"
+
+    # resolve_girder_value must raise KeyError for girder index 2 (G3)
+    with pytest.raises(KeyError) as exc_info:
+        resolve_girder_value(inputs, base_key, 2)
+    assert "missing for girder G3" in str(exc_info.value)
+
+    # calculate_material_quantities must report N.A. and flag warnings rather than fabricating
+    quantities = calculate_material_quantities(inputs, {})
+    assert quantities["steel_girders_vol_total"] == "N.A."
+    assert quantities["steel_girders_wt_total"] == "N.A."
+    warnings = quantities.get("_warnings", [])
+    assert any("G3" in w for w in warnings)
+
+
+def test_boq_configurable_material_assumptions():
+    """Verify that configurable material densities and rebar rates take effect."""
+    inputs = {
+        KEY_SPAN: 20.0,
+        KEY_TS_NO_OF_GIRDERS: 4,
+        KEY_TS_DECK_THICKNESS: 200,
+        "typical_section.overall_bridge_width": 10.0,
+        "member_properties.girder_details.section_properties.area": 0.05,
+        "design_options.material_assumptions": {
+            "concrete_density_t_m3": 2.4,
+            "rebar_rate_kg_m3": 100.0,
+            "steel_density_kg_m3": 7800.0
+        }
+    }
+    quantities = calculate_material_quantities(inputs, {})
+    # Concrete volume = 20 * 10 * 0.2 = 40.0 m^3
+    # Concrete wt = 40.0 * 2.4 = 96.0 MT
+    assert quantities["concrete_deck_vol_total"] == "40.00"
+    assert quantities["concrete_deck_wt_total"] == "96.00"
+    # Rebar wt = 40.0 * 100.0 kg = 4000.0 kg = 4.0 MT
+    assert quantities["rebar_deck_wt_total"] == "4.00"
+    assert quantities["_assumptions"]["concrete_density_t_m3"] == 2.4
 
 
 def test_full_report_tex_assembly(tmp_path):
@@ -137,6 +211,8 @@ def test_full_report_tex_assembly(tmp_path):
             KEY_TS_DECK_OVERHANG: 1.2,
             KEY_TS_DECK_THICKNESS: 220,
             "typical_section.overall_bridge_width": 9.9,
+            "member_properties.girder_details.section_properties.area": 0.048,
+            "member_properties.girder_details.section_properties.mass": 376.8,
             KEY_LL_IRC_CLASS_A: True,
             KEY_LL_IRC_70R_WHEELED: True,
             KEY_TS_FOOTPATH_WIDTH: 1500,
@@ -159,5 +235,41 @@ def test_full_report_tex_assembly(tmp_path):
     assert "tableHeaderBg" in tex
     assert "ur_summary.png" in tex
     assert "material_steel.png" in tex
+    assert "material_concrete.png" in tex
     assert "Footpath and Pedestrian Live Loads" in tex
     assert "\\endhead" in tex
+    assert "\\endfirsthead" in tex
+
+
+@pytest.mark.skipif(not shutil.which("pdflatex"), reason="pdflatex compiler not installed in local environment")
+def test_pdf_compilation_when_toolchain_present(tmp_path):
+    """Test PDF compilation when pdflatex is present on PATH."""
+    out_dir = str(tmp_path)
+    metadata = ReportMetadata(
+        project_name="PDF Smoke Test",
+        project_location="Delhi",
+        designer="Tester",
+        client="MoRTH",
+        company="IIT Bombay"
+    )
+    options = ReportOptions(
+        sections=['project_info', 'inputs'],
+        include_figures=False,
+        include_toc=False,
+        include_pdf=True
+    )
+    request = ReportRequest(
+        metadata=metadata,
+        options=options,
+        output_dir=out_dir,
+        file_stem="pdf_smoke"
+    )
+    payload = ReportPayload(
+        metadata=metadata,
+        options=options,
+        inputs={KEY_SPAN: 15.0, KEY_TS_NO_OF_GIRDERS: 3},
+        analysis_summary={},
+        design_checks=[]
+    )
+    result = generate_report(payload, request)
+    assert result.pdf_path and os.path.exists(result.pdf_path)

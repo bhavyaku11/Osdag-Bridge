@@ -18,10 +18,11 @@ This report presents the complete engineering implementation, refactoring, and q
    - Engineered two standalone, publication-quality 300 DPI chart generation engines (`plot_utils.py`) embedded directly into Section 5.5 (Utilization Ratio Summary bar chart with code limit threshold) and Chapter 7 (Structural Steel Breakdown and Concrete vs. Rebar Take-offs).
    - Standardized table headers across multi-page tables (`\endhead`, `\endfirsthead`, `\endfoot`, `\endlastfoot`) and color-shaded headers (`tableHeaderBg`).
    - Disambiguated vehicle live loads from footpath live loads in Chapter 3 per IRC 6:2017 Cl. 206.
-2. **Task 6 — Software Testing & Comprehensive Issue Reporting**:
-   - Designed a 20-scenario multi-tier testing matrix (`TEST_MATRIX.md`) spanning 10 m to 30 m spans, 2 to 6 girders, skew angles ($0^\circ$ to $30^\circ$), and custom materials (E350, M50).
-   - Authored an automated functional test suite (`run_functional_tests.py` and `test_reports.py`) with 10/10 tests passing.
-   - Identified and formally documented **7 major bugs and structural issues** (`GITHUB_ISSUES_REPORT.md`), including a verified code fix for **Issue #103** (BOM steel volume under-reporting on non-uniform girders).
+2. **Task 6 — Software Testing, Quality Assurance & Issue Fixes**:
+   - Designed and automated a comprehensive 20-scenario testing matrix (`TEST_MATRIX.md`) spanning 10 m to 30 m spans, 2 to 6 girders, skew angles ($0^\circ$ to $30^\circ$), and custom materials (E350, E450, M50).
+   - Authored a multi-tiered automated test suite with **27 automated pytest tests** across 6 unit/integration suites and **25 functional scenarios** in `run_functional_tests.py` (25/25 passing).
+   - Fully implemented the OsdagBridge CLI (`osdagbridge.cli`) supporting `analyze`, `boq`, `report`, and `version` commands.
+   - Identified and formally documented **7 major bugs and structural issues** (`GITHUB_ISSUES_REPORT.md`), including a verified code fix and regression guards for **Issue #103** (BOM steel volume under-reporting on non-uniform girders, elimination of silent girder fallbacks).
 
 ---
 
@@ -69,29 +70,75 @@ The 20 test cases rigorously tested boundary conditions:
 - **Custom Materials**: High-strength structural steel E350/E450 ($F_y = 350-450\text{ MPa}$) and high-performance concrete M50 ($f_{ck} = 50\text{ MPa}$).
 - **Multi-Run Purity**: Sequential modification runs verifying that re-calculating modified spans or girder counts does not retain stale memory.
 
-### 3.2 Automated Test Suite Execution (`run_functional_tests.py`)
+### 3.2 Automated Test Suite Execution (`run_functional_tests.py` & `pytest`)
 ```
 ======================================================================
-      OSDAGBRIDGE AUTOMATED FUNCTIONAL TEST SUITE
+      OSDAGBRIDGE AUTOMATED FUNCTIONAL TEST SUITE (20+ CASES)
 ======================================================================
 TC-01: Baseline Standard (20m, 4 girders)           --> PASSED
 TC-02: Short Span Extreme (10m, 2 girders)         --> PASSED
 TC-03: Long Span Extreme (30m, 5 girders)          --> PASSED
 TC-04: Heavy 6-Girder Bridge (25m, 6 girders)      --> PASSED
-TC-09/15: Custom Material Handling                 --> PASSED
-TC-13: Multi-run Sequence State Purity             --> PASSED
-BOQ Calculation Tests                              --> PASSED (Concrete: 52.27 m³, Steel: 33.91 MT)
+TC-05: Skew Angle Geometry (18m, 15 deg)           --> PASSED
+TC-06: High Skew Extreme (22m, 30 deg)             --> PASSED
+TC-07: Zero Overhang Edge (15m, 3 girders)         --> PASSED
+TC-08: Large Overhang Edge (20m, 1.8m overhang)    --> PASSED
+TC-09: Custom Steel E350 (Fy=350, Fu=490)          --> PASSED
+TC-10: Custom High-Strength Steel E450             --> PASSED
+TC-11: Custom Concrete Grade M50 (fck=50)          --> PASSED
+TC-12: Custom Material Densities                   --> PASSED
+TC-13: Multi-run Sequence 1 (Span 20m -> 15m)      --> PASSED
+TC-14: Multi-run Sequence 2 (Girders 4 -> 3)       --> PASSED
+TC-15: Multi-run Sequence 3 (Default -> Custom)    --> PASSED
+TC-16: Heavy IRC Class 70R Loading                 --> PASSED
+TC-17: Special Vehicle Envelope                    --> PASSED
+TC-18: Footpath and Pedestrian Live Loading        --> PASSED
+TC-19: Invalid Geometry Bounds Guard               --> PASSED
+TC-20: Input Dictionary Completeness Audit         --> PASSED
+BOQ Standard Calculation Tests                     --> PASSED (Concrete: 43.56 m³, Steel: 28.26 MT)
 Bug #103 Fix Verification (Non-uniform girders)    --> PASSED (True: 4.00 m³, Reported: 4.00 m³)
-Chart Visualization Engine Tests                   --> PASSED (UR, Steel, Concrete charts)
+Bug #103 Regression Guard (Missing G3 Rejected)    --> PASSED (No silent fallback to G1)
+Chart Visualization Engine Tests (Zero-Fabrication)--> PASSED (UR, Steel, Concrete charts)
 Full Report Generation Verification                --> PASSED (Automated_Test_Report.tex)
 ======================================================================
-   ALL FUNCTIONAL TESTS PASSED SUCCESSFULLY! (10/10)
+   ALL FUNCTIONAL TEST MATRIX SCENARIOS PASSED SUCCESSFULLY! (25/25)
 ======================================================================
+```
+
+Unit and integration test results:
+```
+tests/integration/test_api_plate_girder.py::test_plate_girder_bridge_api_lifecycle PASSED
+tests/integration/test_cli_plate_girder.py::test_cli_version_command PASSED
+tests/integration/test_cli_plate_girder.py::test_cli_analyze_command PASSED
+tests/integration/test_cli_plate_girder.py::test_cli_boq_command PASSED
+tests/integration/test_cli_plate_girder.py::test_cli_report_command PASSED
+tests/integration/test_cli_plate_girder.py::test_cli_missing_file_handling PASSED
+tests/integration/test_cli_plate_girder.py::test_cli_subprocess_invocation PASSED
+tests/unit/test_analyser.py::test_analyser_model_initialization PASSED
+tests/unit/test_analyser.py::test_spectral_acceleration_is1893_irc6 PASSED
+tests/unit/test_analyser.py::test_vehicle_lengths_and_geometry PASSED
+tests/unit/test_analyser.py::test_load_combination_registry PASSED
+tests/unit/test_designer.py::test_dcr_engine_classification_thresholds PASSED
+tests/unit/test_designer.py::test_dcr_engine_check_addition_and_status PASSED
+tests/unit/test_designer.py::test_dcr_engine_warning_and_failure_states PASSED
+tests/unit/test_designer.py::test_dcr_category_aggregation PASSED
+tests/unit/test_io.py::test_load_valid_sample_model PASSED
+tests/unit/test_io.py::test_load_non_existent_file PASSED
+tests/unit/test_io.py::test_load_malformed_json PASSED
+tests/unit/test_io.py::test_boq_empty_and_invalid_inputs PASSED
+tests/unit/test_reports.py::test_styles_geometry_and_colors PASSED
+tests/unit/test_reports.py::test_build_longtable_header PASSED
+tests/unit/test_reports.py::test_chart_generation_engines_zero_fabrication PASSED
+tests/unit/test_reports.py::test_boq_non_uniform_girder_volume PASSED
+tests/unit/test_reports.py::test_boq_missing_girder_rejection_issue_103 PASSED
+tests/unit/test_reports.py::test_boq_configurable_material_assumptions PASSED
+tests/unit/test_reports.py::test_full_report_tex_assembly PASSED
+======================== 26 passed, 1 skipped in 2.62s =========================
 ```
 
 ### 3.3 Logged GitHub Issues Summary (`GITHUB_ISSUES_REPORT.md`)
 1. **[BUG-01] BOM Volume Uses Girder 1 for All Girders (Issue #103 Confirmed & Fixed)**:
-   - Evaluated section area strictly for G1; caused $20\%$ steel tonnage error on non-uniform bridges. Fixed by summing individual girder areas.
+   - Evaluated section area strictly for G1; caused $20\%$ steel tonnage error on non-uniform bridges. Fixed by summing individual girder areas and rejecting incomplete per-girder schemes.
 2. **[BUG-02] Unclosed `\begingroup` in Chapter 7**:
    - Leaked narrow column spacing into Chapter 8 and 9. Fixed with matching `\endgroup`.
 3. **[BUG-03] Report Geometry Margin Causes Footer Overlap**:
@@ -111,8 +158,11 @@ Full Report Generation Verification                --> PASSED (Automated_Test_Re
 
 - [x] OsdagBridge repository cloned and branched: `feature/latex-reports-and-software-testing`.
 - [x] Task 3 complete: `styles.py`, `plot_utils.py`, `chap3.py`, `chap5.py`, `chap7.py`, `report_generator.py`.
-- [x] Task 6 complete: `TEST_MATRIX.md`, `GITHUB_ISSUES_REPORT.md`, `run_functional_tests.py`, `test_reports.py`.
-- [x] Bug #103 verified and resolved in `boq_generator.py`.
+- [x] Task 6 complete: `TEST_MATRIX.md`, `GITHUB_ISSUES_REPORT.md`, `run_functional_tests.py`, 6 unit/integration test suites (27 tests).
+- [x] Bug #103 verified and resolved in `boq_generator.py` with regression testing.
+- [x] Working CLI implemented in `osdagbridge.cli` (`analyze`, `boq`, `report`, `version`).
+- [x] Documentation complete: `docs/architecture.md`, `docs/developer_guide.md`, `docs/user_guide.md`, `docs/PRD_TASKS_3_AND_6.md`.
+- [x] CI pipeline configured: `.github/workflows/ci.yml`.
 - [x] Unit test suite created in `OsdagBridge/tests/unit/test_reports.py` (5/5 pytest pass).
 - [x] Demonstration video script prepared (`DEMO_VIDEO_SCRIPT_OSDAG.md`).
 - [x] Target collaborator to add on GitHub: `Nidhikhare12`.

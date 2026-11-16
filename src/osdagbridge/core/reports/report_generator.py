@@ -394,6 +394,7 @@ class ReportOptions:
     include_figures: bool
     include_toc: bool
     include_pdf: bool
+    demo_mode: bool = False
 
 @dataclass
 class ReportRequest:
@@ -890,11 +891,12 @@ def generate_report(payload, request):
             # Generate chart visualizations
             try:
                 from osdagbridge.core.reports.plot_utils import generate_ur_summary_chart, generate_material_quantity_chart
-                ur_chart_path = generate_ur_summary_chart(payload.output_dict, tmp_images)
+                is_demo = getattr(payload.options, "demo_mode", False)
+                ur_chart_path = generate_ur_summary_chart(payload.output_dict, tmp_images, demo_mode=is_demo)
                 if ur_chart_path:
                     fig_paths['ur_summary'] = ur_chart_path.replace('\\', '/')
 
-                steel_chart, conc_chart = generate_material_quantity_chart(payload.inputs, quantities, tmp_images)
+                steel_chart, conc_chart = generate_material_quantity_chart(payload.inputs, quantities, tmp_images, demo_mode=is_demo)
                 if steel_chart:
                     fig_paths['material_steel'] = steel_chart.replace('\\', '/')
                 if conc_chart:
