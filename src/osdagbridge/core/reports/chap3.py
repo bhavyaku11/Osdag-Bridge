@@ -333,6 +333,7 @@ def ch3_loads(input_dict):
     )
 
     # 5. Wind Load (WL)
+    pressure_unit = r" N/m\textsuperscript{2}"
     t35 = build_table_with_headers(
         col_spec=r"|L{5.5cm}|p{10.0cm}|",
         header_row=r"\textbf{Wind Parameter} & \textbf{Design Value}",
@@ -343,7 +344,7 @@ def ch3_loads(input_dict):
             f"\\textnormal{{Terrain Type}} & {_render_value(input_dict, KEY_WL_TERRAIN_TYPE)} \\\\[5pt]\n\\hline",
             f"\\textnormal{{Average Exposed Height, $H$}} & {_render_value(input_dict, KEY_WL_AVG_EXPOSED_HEIGHT, ' m')} \\\\[5pt]\n\\hline",
             f"\\textnormal{{Hourly Mean Wind Speed, $V_z$}} & {_render_value(input_dict, KEY_WL_HOURLY_MEAN_WIND, ' m/s')} \\\\[5pt]\n\\hline",
-            f"\\textnormal{{Hourly Wind Pressure, $P_z$}} & {_render_value(input_dict, KEY_WL_HOURLY_WIND_PRESSURE, ' N/m\\textsuperscript{2}')} \\\\[5pt]\n\\hline",
+            f"\\textnormal{{Hourly Wind Pressure, $P_z$}} & {_render_value(input_dict, KEY_WL_HOURLY_WIND_PRESSURE, pressure_unit)} \\\\[5pt]\n\\hline",
             f"\\textnormal{{Transverse Wind Force}} & {_render_value(input_dict, KEY_WL_TRANSVERSE_WIND_FORCE, ' kN')} \\\\[5pt]\n\\hline",
             f"\\textnormal{{Longitudinal Wind Force}} & {_render_value(input_dict, KEY_WL_LONGITUDINAL_WIND_FORCE, ' kN')} \\\\[5pt]\n\\hline",
             f"\\textnormal{{Vertical Wind Force}} & {_render_value(input_dict, KEY_WL_VERTICAL_WIND_FORCE, ' kN')} \\\\[5pt]\n\\hline"
