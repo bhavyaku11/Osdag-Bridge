@@ -141,11 +141,11 @@ from osdagbridge.core.utils.common import (
     KEY_UTIL_SHEAR
 )
 
-from osdagbridge.core.reports.report_utils import _tex, _render_value, get_girder_entries
+from osdagbridge.core.reports.report_utils import _tex, _render_value, get_girder_entries, _fig_embed
 
 if TYPE_CHECKING:
     pass
-def ch5_design_checks(checks_data, bridge) -> str:
+def ch5_design_checks(checks_data, bridge, fig_paths=None) -> str:
     """Chapter 5 — Design Checks.
 
     Parameters
@@ -1486,17 +1486,33 @@ End diaphragms at the supports transfer transverse loads to the bearings, restra
 \end{longtable}
 \noindent\textit{Note: Designed per IS 800 Cl. 7 (compression) and Cl. 6 (tension). OsdagBridge cross-bracing module used.}
 
-% ===========================
+# ===========================
 \section{Overall Design Check Summary}
 \label{sec:overall-summary}
 % ===========================
 
+""" + (_fig_embed(fig_paths.get('ur_summary') if fig_paths else None, 'Overall Design Check Summary --- Component Utilization Ratios and Permissible Limit (UR = 1.0)', width=r'0.95\textwidth') if (fig_paths and fig_paths.get('ur_summary')) else '') + r"""
+
 \vspace{1em}
 \begin{longtable}{|C{3.4cm}|L{4.5cm}|C{2.3cm}|C{2.3cm}|>{\centering\arraybackslash}p{1.6cm}|}
 \caption{\textbf{Overall Design Check Summary --- All Members}}
+\label{tab:overall-summary} \\
 \hline
+\rowcolor{tableHeaderBg}
 \textbf{Member / Check} & \textbf{Governing Load Combo} & \textbf{Demand} & \textbf{Capacity} & \textbf{UR} \\[6pt]
 \hline
+\endfirsthead
+\caption[]{\textbf{Overall Design Check Summary --- All Members (Continued)}} \\
+\hline
+\rowcolor{tableHeaderBg}
+\textbf{Member / Check} & \textbf{Governing Load Combo} & \textbf{Demand} & \textbf{Capacity} & \textbf{UR} \\[6pt]
+\hline
+\endhead
+\hline
+\multicolumn{5}{r}{\footnotesize\textit{Continued on next page...}} \\
+\endfoot
+\hline
+\endlastfoot
 """ + t522_content + r"""
 \end{longtable}
 \noindent\textit{Note: UR = Demand / Capacity. All values $\leq 1.0$ indicate passing checks. The governing check for each component is highlighted in the individual design check sections above.}

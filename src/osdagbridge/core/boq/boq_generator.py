@@ -170,21 +170,26 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
                 pass
 
         total_girder_mass = 0.0
+        total_girder_vol = 0.0
         if girder_area > 0:
-            girder_vol = girder_area * span
-            quantities["steel_girders_vol_formula"] = f"${girder_area:.5f}\\text{{ m}}^2 \\times {span:.2f}\\text{{ m}} = {girder_vol:.5f}\\text{{ m}}^3$"
+            quantities["steel_girders_vol_formula"] = f"${girder_area:.5f}\\text{{ m}}^2 \\times {span:.2f}\\text{{ m}}$"
             quantities["steel_girders_qty"] = str(n_girders)
             
-            # calculate tonnage / volume
+            # calculate tonnage / volume across each individual girder
             for gi in range(n_girders):
+                try:
+                    gi_area = float(resolve_girder_value(inputs, "member_properties.girder_details.section_properties.area", gi))
+                except Exception:
+                    gi_area = girder_area
+                total_girder_vol += gi_area * span
+
                 try:
                     mass_per_m = float(resolve_girder_value(inputs, "member_properties.girder_details.section_properties.mass", gi))
                     total_girder_mass += mass_per_m * span
                 except Exception:
-                    total_girder_mass += girder_area * span * 7850.0
+                    total_girder_mass += gi_area * span * 7850.0
             
-            girder_total_vol = n_girders * girder_vol
-            quantities["steel_girders_vol_total"] = f"{girder_total_vol:.2f}"
+            quantities["steel_girders_vol_total"] = f"{total_girder_vol:.2f}"
             
             single_girder_wt = (total_girder_mass / n_girders) / 1000.0
             total_girder_wt = total_girder_mass / 1000.0

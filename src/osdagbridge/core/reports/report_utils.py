@@ -4,6 +4,8 @@ from osdagbridge.core.utils.common import (
     KEY_MP_GIRDER_DEPTH,
     KEY_TS_NO_OF_GIRDERS
 )
+from osdagbridge.core.reports.styles import ReportStyle, ColorPalette, GeometryConfig, TableFormatting
+
 
 
 def _tex(value):
@@ -111,5 +113,38 @@ def _fig_embed(path, caption, width=r'\textwidth', height=None):
     return (r'\noindent\fbox{\parbox{0.97\textwidth}{' + '\n'
             r'\textit{[ PLACEHOLDER: ' + caption + r' ]}' + '\n'
             r'}}')
+
+
+def build_table_with_headers(col_spec, header_row, body_rows, caption=None, label=None, continued_caption=None):
+    """
+    Construct a complete LongTable with proper repeated headers across page breaks.
+    Uses ReportStyle.build_longtable_header() to guarantee consistency.
+
+    Args:
+        col_spec: Column specification (e.g., '|L{5.5cm}|p{10.0cm}|')
+        header_row: Formatted LaTeX header row cells (e.g., r'\textbf{Parameter} & \textbf{Value}')
+        body_rows: List of row strings or a single multiline string with rows ended by r'\\'
+        caption: Table caption string
+        label: Table LaTeX label (e.g., 'tab:live-loads')
+        continued_caption: Caption to show on subsequent pages (optional)
+
+    Returns:
+        Complete LaTeX LongTable string
+    """
+    header_block = ReportStyle.build_longtable_header(
+        col_spec=col_spec,
+        header_row=header_row,
+        caption=caption,
+        label=label,
+        continued_caption=continued_caption
+    )
+
+    if isinstance(body_rows, (list, tuple)):
+        body_block = "\n".join(body_rows)
+    else:
+        body_block = str(body_rows).strip()
+
+    return header_block + "\n" + body_block + "\n\\end{longtable}\n"
+
 
 
